@@ -627,6 +627,22 @@ body.no-store-mode .fab{display:none}
 .manual-actions .btn-mini:hover{background:var(--blue-pale);color:var(--blue-deep)}
 .manual-actions .manual-count{margin-left:auto;font-size:11px;font-weight:700;color:var(--text-mute)}
 
+/* ============ WORKLOG (Dokumentasi Kerja) ============ */
+.wl-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.wl-status{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:9.5px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;flex-shrink:0}
+.wl-status.selesai{background:var(--green-pale);color:var(--green-deep)}
+.wl-status.draft{background:var(--amber-pale);color:var(--amber-deep)}
+.wl-status.tindak_lanjut{background:var(--rose-pale);color:var(--rose-deep)}
+.wl-cat-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:6px;font-size:9.5px;font-weight:800;background:var(--blue-pale);color:var(--blue-deep);flex-shrink:0}
+.wl-cat-badge.green{background:var(--green-pale);color:var(--green-deep)}
+.wl-cat-badge.violet{background:var(--violet-pale);color:var(--violet-deep)}
+.wl-cat-badge.amber{background:var(--amber-pale);color:var(--amber-deep)}
+.wl-cat-badge.teal{background:var(--teal-pale);color:var(--teal-deep)}
+.wl-desc-preview{font-size:11px;color:var(--text-soft);margin-top:6px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:500}
+.wl-filter-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.wl-filter-bar .chip-button{background:var(--surface-3);color:var(--text-soft)}
+.wl-filter-bar .chip-button.active{background:var(--violet);color:#fff}
+
 /* ============ SCROLLBARS ============ */
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px;border:2px solid transparent;background-clip:padding-box}
@@ -732,6 +748,7 @@ body.no-store-mode .fab{display:none}
       <button class="nav-item active" data-view="dashboard"><i class="fas fa-house"></i><span>Dashboard</span></button>
       <button class="nav-item" data-view="items"><i class="fas fa-boxes-stacked"></i><span>Barang</span></button>
       <button class="nav-item" data-view="stores"><i class="fas fa-store"></i><span>Toko</span></button>
+      <button class="nav-item" data-view="worklog"><i class="fas fa-clipboard-list"></i><span>Dokumentasi</span></button>
       <button class="nav-item" data-view="compare" id="navCompare"><i class="fas fa-right-left"></i><span>Bandingkan</span></button>
       <button class="nav-item" data-view="reports" id="navReports"><i class="fas fa-chart-simple"></i><span>Laporan</span></button>
     </nav>
@@ -846,6 +863,36 @@ body.no-store-mode .fab{display:none}
           <span class="count" id="storeCount">0 toko</span>
         </div>
         <div id="storeList"></div>
+      </section>
+
+      <section class="view" id="view-worklog">
+        <div class="fb-info-box">
+          <i class="fas fa-circle-info" style="color:var(--violet);margin-right:6px"></i>
+          <b>Tentang Dokumentasi Kerja:</b> Catat setiap kegiatan kerja (kunjungan toko, survey harga, rapat, dll) beserta <b>keterangan/uraian</b>, <b>hasil</b>, dan <b>foto bukti</b>. Data ini berguna untuk pelaporan & evaluasi kinerja.
+        </div>
+
+        <div class="search">
+          <i class="fas fa-magnifying-glass"></i>
+          <input type="text" id="searchWorklog" placeholder="Cari judul, keterangan, atau toko..." autocomplete="off">
+        </div>
+
+        <div class="section-head" style="margin-top:0">
+          <h2><i class="fas fa-clipboard-list"></i> Dokumentasi Kerja</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="chip-button" onclick="exportWorklogPDF()" style="background:var(--rose-pale);color:var(--rose-deep)"><i class="fas fa-file-pdf"></i> Export PDF</button>
+            <span class="count" id="worklogCount">0 entri</span>
+          </div>
+        </div>
+
+        <div class="kpi-grid" id="worklogStats" style="margin-bottom:14px"></div>
+
+        <div class="wl-filter-bar" id="worklogFilterBar"></div>
+
+        <div id="worklogList"></div>
+
+        <button class="btn btn-violet" style="margin-top:14px" onclick="openWorklogModal()">
+          <i class="fas fa-plus"></i> Tambah Dokumentasi Baru
+        </button>
       </section>
 
       <section class="view" id="view-compare">
@@ -1603,6 +1650,93 @@ body.no-store-mode .fab{display:none}
   </div>
 </div>
 
+<!-- Worklog Modal (Dokumentasi Kerja) -->
+<div class="scrim" id="worklogModal">
+  <div class="sheet">
+    <div class="sheet-header">
+      <i class="fas fa-clipboard-list" style="background:var(--violet-pale);color:var(--violet-deep)"></i>
+      <h2 id="worklogModalTitle">Tambah Dokumentasi</h2>
+    </div>
+    <div class="sheet-body">
+      <form id="worklogForm" onsubmit="saveWorklog(event)">
+        <input type="hidden" id="wlId">
+        <input type="hidden" id="wlPhotoUrl">
+
+        <div class="photo-field">
+          <label class="field-label">Foto Bukti (opsional)</label>
+          <div class="photo-drop" id="wlPhotoDrop">
+            <input type="file" accept="image/*" id="wlPhotoInput" onchange="handlePhotoSelect('wlPhoto')">
+            <img id="wlPhotoPreview" class="photo-preview" style="display:none" alt="">
+            <button type="button" class="photo-overlay-btn" onclick="clearPhoto('wlPhoto', event)"><i class="fas fa-xmark"></i></button>
+            <div class="photo-drop-inner" id="wlPhotoPlaceholder">
+              <i class="fas fa-camera"></i><span>Klik untuk pilih foto bukti</span><small>JPG/PNG, max 5MB</small>
+            </div>
+            <div class="uploading-overlay" id="wlPhotoUploading" style="display:none">
+              <i class="fas fa-spinner fa-spin"></i><span>Mengunggah...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Judul Dokumentasi <span class="req">*</span></label>
+          <div class="field-wrap"><i class="fas fa-heading"></i>
+            <input type="text" class="input" id="wlTitle" placeholder="Contoh: Kunjungan Toko Pak Jukri" maxlength="80" required>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label">Jenis Kegiatan <span class="req">*</span></label>
+            <div class="field-wrap"><i class="fas fa-tag"></i>
+              <select class="select" id="wlCategory" required></select>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">Tanggal <span class="req">*</span></label>
+            <div class="field-wrap"><i class="fas fa-calendar"></i>
+              <input type="date" class="input" id="wlDate" required>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Toko Terkait (opsional)</label>
+          <div class="field-wrap"><i class="fas fa-store"></i>
+            <select class="select" id="wlStore"></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Keterangan / Uraian Kegiatan <span class="req">*</span></label>
+          <div class="field-wrap"><i class="fas fa-pen"></i>
+            <textarea class="textarea" id="wlDescription" placeholder="Jelaskan kegiatan yang dilakukan, kondisi lapangan, hasil pengamatan, dll..." rows="4" required></textarea>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Hasil / Tindak Lanjut</label>
+          <div class="field-wrap"><i class="fas fa-list-check"></i>
+            <textarea class="textarea" id="wlResult" placeholder="Hasil yang dicapai atau rencana tindak lanjut..." rows="2"></textarea>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Status</label>
+          <div class="field-wrap"><i class="fas fa-circle-half-stroke"></i>
+            <select class="select" id="wlStatus"></select>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn-outlined" onclick="closeSheet('worklogModal')">Batal</button>
+          <button type="submit" class="btn btn-violet" id="wlSaveBtn"><i class="fas fa-check"></i> Simpan</button>
+        </div>
+        <button type="button" class="btn btn-danger" id="btnDeleteWorklog" style="margin-top:10px;display:none" onclick="deleteWorklogFromModal()"><i class="fas fa-trash"></i> Hapus Dokumentasi</button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div id="snackbar-container"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -1679,7 +1813,7 @@ async function uploadToCloudinary(file){
   return data.secure_url;
 }
 
-const pendingPhotos = { sPhoto: null, iPhoto: null, shPhoto: null, ehPhoto: null };
+const pendingPhotos = { sPhoto: null, iPhoto: null, shPhoto: null, ehPhoto: null, wlPhoto: null };
 
 function handlePhotoSelect(key){
   const input = document.getElementById(key + 'Input');
@@ -1802,7 +1936,7 @@ let activeAgentUid = null;
 let activeAgentName = '';
 let activeAgentRole = null;
 
-const cache = { stores: new Map(), items: new Map(), prices: new Map(), histories: new Map() };
+const cache = { stores: new Map(), items: new Map(), prices: new Map(), histories: new Map(), worklogs: new Map() };
 const newId = () => Date.now() * 1000 + Math.floor(Math.random() * 1000);
 
 function targetUid(){
@@ -1868,7 +2002,7 @@ function updateRoleBadgeUI(){
   roleBadge.classList.remove('admin', 'agen', 'petugas');
   roleBadge.textContent = currentRole.toUpperCase();
   roleBadge.classList.add(currentRole);
-  
+
   const sidebarUser = document.getElementById('sidebarUser');
   const sidebarUserName = document.getElementById('sidebarUserName');
   const sidebarUserRole = document.getElementById('sidebarUserRole');
@@ -1909,8 +2043,8 @@ async function ensureAgentRegistered(){
 }
 
 async function loadAll(){
-  ['stores','items','prices','histories'].forEach(n => cache[n].clear());
-  const names = ['stores','items','prices','histories'];
+  ['stores','items','prices','histories','worklogs'].forEach(n => cache[n].clear());
+  const names = ['stores','items','prices','histories','worklogs'];
   const snaps = await Promise.all(names.map(n => getDocs(colRef(n))));
   snaps.forEach((snap, i) => {
     snap.forEach(d => {
@@ -1921,8 +2055,8 @@ async function loadAll(){
 }
 
 async function loadAllForAgent(agentUid){
-  ['stores','items','prices','histories'].forEach(n => cache[n].clear());
-  const names = ['stores','items','prices','histories'];
+  ['stores','items','prices','histories','worklogs'].forEach(n => cache[n].clear());
+  const names = ['stores','items','prices','histories','worklogs'];
   const snaps = await Promise.all(names.map(n => getDocs(colRefFor(agentUid, n))));
   snaps.forEach((snap, i) => {
     snap.forEach(d => {
@@ -1933,7 +2067,7 @@ async function loadAllForAgent(agentUid){
 }
 
 async function loadAdminOverviewData(){
-  ['stores','items','prices','histories'].forEach(n => cache[n].clear());
+  ['stores','items','prices','histories','worklogs'].forEach(n => cache[n].clear());
   let agents = [];
   try {
     const snap = await getDocs(collection(fdb, 'agent_registry'));
@@ -1944,11 +2078,12 @@ async function loadAdminOverviewData(){
   }
   for(const agent of agents){
     try {
-      const [stores, items, prices, histories] = await Promise.all([
+      const [stores, items, prices, histories, worklogs] = await Promise.all([
         getDocs(colRefFor(agent.uid, 'stores')),
         getDocs(colRefFor(agent.uid, 'items')),
         getDocs(colRefFor(agent.uid, 'prices')),
-        getDocs(colRefFor(agent.uid, 'histories'))
+        getDocs(colRefFor(agent.uid, 'histories')),
+        getDocs(colRefFor(agent.uid, 'worklogs'))
       ]);
       const ownerMeta = {
         _ownerUid: agent.uid,
@@ -1960,6 +2095,7 @@ async function loadAdminOverviewData(){
       items.forEach(d  => { const dd = d.data(); cache.items.set(dd.id, { ...dd, ...ownerMeta }); });
       prices.forEach(d => { const dd = d.data(); cache.prices.set(dd.id, { ...dd, ...ownerMeta }); });
       histories.forEach(d => { const dd = d.data(); cache.histories.set(dd.id, { ...dd, ...ownerMeta }); });
+      worklogs.forEach(d => { const dd = d.data(); cache.worklogs.set(dd.id, { ...dd, ...ownerMeta }); });
     } catch(e){ console.warn(`Gagal muat data agen ${agent.uid}:`, e); }
   }
 }
@@ -2182,7 +2318,10 @@ const state = {
   selectedItems: new Set(),
   bulkDraft: {},
   bulkSearch: '',
-  manualCompareItems: new Set()
+  manualCompareItems: new Set(),
+  worklogSearch: '',
+  worklogCatFilter: '',
+  worklogStatusFilter: ''
 };
 
 function jaroWinkler(a, b){
@@ -2997,11 +3136,12 @@ function switchView(name){
   const view = document.getElementById('view-' + name);
   if(view) view.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  
+
   const pageTitles = {
     dashboard: 'Dashboard',
     items: 'Daftar Barang',
     stores: 'Daftar Toko',
+    worklog: 'Dokumentasi Kerja',
     compare: 'Bandingkan Harga',
     reports: 'Laporan & Analisis'
   };
@@ -3009,15 +3149,16 @@ function switchView(name){
     dashboard: isAdmin && activeAgentUid ? `Kelola: ${activeAgentName}` : (isAdmin ? 'Ringkasan semua agen' : 'Perbandingan harga antar toko'),
     items: 'Kelola semua barang',
     stores: isAdmin && activeAgentUid ? `Toko milik: ${activeAgentName}` : 'Daftar toko terdaftar',
+    worklog: 'Catatan kegiatan & dokumentasi',
     compare: 'Perbandingan harga detail',
     reports: isAdmin && activeAgentUid ? 'Laporan pengguna terpilih' : (isAdmin ? 'Laporan gabungan semua agen' : 'Laporan & grafik')
   };
-  
+
   const pageTitleEl = document.getElementById('pageTitle');
   const appbarSubEl = document.getElementById('appbarSub');
   if(pageTitleEl) pageTitleEl.textContent = pageTitles[name] || 'bapok';
   if(appbarSubEl) appbarSubEl.textContent = subtitles[name] || 'Perbandingan Harga';
-  
+
   const mainEl = document.querySelector('.main');
   if(mainEl) mainEl.scrollTo({ top:0, behavior:'smooth' });
   renderAll();
@@ -3810,12 +3951,404 @@ function drawEmptyCanvas(canvas, text){
   ctx.fillText(text, canvas.width/2, canvas.height/2);
 }
 
+/* ============ WORKLOG (DOKUMENTASI KERJA) ============ */
+const WORKLOG_CATEGORIES = [
+  { value: 'kunjungan', label: 'Kunjungan Toko', icon: 'fa-store', color: '' },
+  { value: 'survey',    label: 'Survey Harga',  icon: 'fa-tags',  color: 'green' },
+  { value: 'rapat',     label: 'Rapat',         icon: 'fa-users', color: 'violet' },
+  { value: 'laporan',   label: 'Laporan',       icon: 'fa-file-lines', color: 'amber' },
+  { value: 'lainnya',   label: 'Lainnya',       icon: 'fa-ellipsis', color: 'teal' }
+];
+const WORKLOG_STATUSES = [
+  { value: 'selesai',       label: 'Selesai',              class: 'selesai' },
+  { value: 'draft',         label: 'Draft',                class: 'draft' },
+  { value: 'tindak_lanjut', label: 'Perlu Tindak Lanjut',  class: 'tindak_lanjut' }
+];
+
+function worklogCatInfo(v){ return WORKLOG_CATEGORIES.find(c => c.value === v) || WORKLOG_CATEGORIES[4]; }
+function worklogStatusInfo(v){ return WORKLOG_STATUSES.find(s => s.value === v) || WORKLOG_STATUSES[0]; }
+function getWorklog(id){ return dbGet('worklogs', id); }
+
+function getFilteredWorklogs(){
+  let list = [...dbGetAll('worklogs')];
+  const q = (state.worklogSearch || '').toLowerCase().trim();
+  if(q) list = list.filter(w =>
+    (w.title||'').toLowerCase().includes(q) ||
+    (w.description||'').toLowerCase().includes(q) ||
+    (w.result||'').toLowerCase().includes(q) ||
+    (w.storeName||'').toLowerCase().includes(q)
+  );
+  if(state.worklogCatFilter) list = list.filter(w => w.category === state.worklogCatFilter);
+  if(state.worklogStatusFilter) list = list.filter(w => w.status === state.worklogStatusFilter);
+  return list.sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.id - a.id));
+}
+
+function renderWorklogStats(){
+  const all = dbGetAll('worklogs');
+  const thisMonth = todayStr().slice(0,7);
+  const thisMonthCount = all.filter(w => (w.date||'').slice(0,7) === thisMonth).length;
+  const done = all.filter(w => w.status === 'selesai').length;
+  const follow = all.filter(w => w.status === 'tindak_lanjut').length;
+  const el = document.getElementById('worklogStats');
+  if(!el) return;
+  el.innerHTML = `
+    <div class="kpi-card kpi-avg">
+      <div class="kpi-icon"><i class="fas fa-clipboard-list"></i></div>
+      <div><div class="kpi-label">Total</div><div class="kpi-value">${all.length}</div><div class="kpi-sub">semua dokumentasi</div></div>
+    </div>
+    <div class="kpi-card kpi-save">
+      <div class="kpi-icon"><i class="fas fa-calendar"></i></div>
+      <div><div class="kpi-label">Bulan Ini</div><div class="kpi-value">${thisMonthCount}</div><div class="kpi-sub">${thisMonth}</div></div>
+    </div>
+    <div class="kpi-card kpi-low">
+      <div class="kpi-icon"><i class="fas fa-check"></i></div>
+      <div><div class="kpi-label">Selesai</div><div class="kpi-value">${done}</div><div class="kpi-sub">dokumentasi</div></div>
+    </div>
+    <div class="kpi-card kpi-high">
+      <div class="kpi-icon"><i class="fas fa-clock"></i></div>
+      <div><div class="kpi-label">Tindak Lanjut</div><div class="kpi-value">${follow}</div><div class="kpi-sub">perlu perhatian</div></div>
+    </div>
+  `;
+}
+
+function renderWorklogFilters(){
+  const bar = document.getElementById('worklogFilterBar');
+  if(!bar) return;
+  let html = `<button class="chip-button ${!state.worklogCatFilter && !state.worklogStatusFilter ? 'active' : ''}" onclick="setWorklogFilter('cat','')">Semua</button>`;
+  WORKLOG_CATEGORIES.forEach(c => {
+    html += `<button class="chip-button ${state.worklogCatFilter===c.value?'active':''}" onclick="setWorklogFilter('cat','${c.value}')"><i class="fas ${c.icon}"></i> ${c.label}</button>`;
+  });
+  bar.innerHTML = html + `<span style="flex:1"></span><button class="chip-button ${state.worklogStatusFilter==='selesai'?'active':''}" onclick="setWorklogFilter('status','${state.worklogStatusFilter==='selesai'?'':'selesai'}')">✓ Selesai</button>` +
+    `<button class="chip-button ${state.worklogStatusFilter==='tindak_lanjut'?'active':''}" onclick="setWorklogFilter('status','${state.worklogStatusFilter==='tindak_lanjut'?'':'tindak_lanjut'}')">⏰ Tindak Lanjut</button>`;
+}
+
+function setWorklogFilter(type, val){
+  if(type === 'cat') state.worklogCatFilter = val;
+  if(type === 'status') state.worklogStatusFilter = val;
+  renderWorklogs();
+}
+window.setWorklogFilter = setWorklogFilter;
+
+function renderWorklogs(){
+  renderWorklogStats();
+  renderWorklogFilters();
+  const list = getFilteredWorklogs();
+  const countEl = document.getElementById('worklogCount');
+  if(countEl) countEl.textContent = `${list.length} entri`;
+  const el = document.getElementById('worklogList');
+  if(!el) return;
+
+  if(list.length === 0){
+    el.innerHTML = `<div class="list"><div class="empty">
+      <div class="empty-icon" style="background:var(--violet-pale);color:var(--violet-deep)"><i class="fas fa-clipboard-list"></i></div>
+      <h3>Belum Ada Dokumentasi</h3>
+      <p>Mulai catat kegiatan kerja Anda: kunjungan toko, survey harga, rapat, atau laporan.</p>
+      <button class="btn-text" onclick="openWorklogModal()" style="background:var(--violet-pale);color:var(--violet-deep)"><i class="fas fa-plus"></i> Tambah Dokumentasi</button>
+    </div></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="list">${list.map(w => {
+    const cat = worklogCatInfo(w.category);
+    const st = worklogStatusInfo(w.status);
+    const thumb = w.photoUrl ? `<img src="${esc(w.photoUrl)}" alt="">` : `<i class="fas ${cat.icon}"></i>`;
+    return `<div class="list-item" onclick="openWorklogDetail(${w.id})" style="align-items:flex-start;padding:14px">
+      <div class="list-avatar ${cat.color==='green'?'in':cat.color==='violet'?'violet':cat.color==='amber'?'out':'prod'}">${thumb}</div>
+      <div class="list-body">
+        <div class="list-title">${esc(w.title||'—')}${ownerBadgeHTML(w)}</div>
+        <div class="wl-meta">
+          <span class="wl-cat-badge ${cat.color}"><i class="fas ${cat.icon}"></i> ${cat.label}</span>
+          <span class="wl-status ${st.class}">${st.label}</span>
+          <span style="font-size:10px;color:var(--text-mute);font-weight:600"><i class="fas fa-calendar"></i> ${fmtDate(w.date)}</span>
+          ${w.storeName ? `<span style="font-size:10px;color:var(--text-mute);font-weight:600"><i class="fas fa-store"></i> ${esc(w.storeName)}</span>` : ''}
+        </div>
+        <div class="wl-desc-preview">${esc(w.description||'')}</div>
+      </div>
+      <i class="fas fa-chevron-right" style="color:var(--text-mute);font-size:11px;margin-top:6px"></i>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function openWorklogModal(id){
+  closeSheet('actionSheet');
+  closeSheet('detailModal');
+  if(isAdmin && !activeAgentUid){
+    snack('Pilih pengguna terlebih dahulu', 'info');
+    openAgentPicker();
+    return;
+  }
+  document.getElementById('worklogForm').reset();
+  document.getElementById('wlId').value = '';
+  document.getElementById('wlDate').value = todayStr();
+  document.getElementById('btnDeleteWorklog').style.display = 'none';
+  resetPhotoField('wlPhoto');
+
+  const catSel = document.getElementById('wlCategory');
+  catSel.innerHTML = WORKLOG_CATEGORIES.map(c => `<option value="${c.value}">${c.label}</option>`).join('');
+
+  const stSel = document.getElementById('wlStatus');
+  stSel.innerHTML = WORKLOG_STATUSES.map(s => `<option value="${s.value}">${s.label}</option>`).join('');
+  stSel.value = 'selesai';
+
+  const storeSel = document.getElementById('wlStore');
+  const stores = [...dbGetAll('stores')].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  storeSel.innerHTML = '<option value="">— Tidak ada toko terkait —</option>' +
+    stores.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+
+  if(id){
+    const w = getWorklog(id);
+    if(!w) return;
+    document.getElementById('worklogModalTitle').textContent = 'Edit Dokumentasi';
+    document.getElementById('wlId').value = w.id;
+    document.getElementById('wlTitle').value = w.title || '';
+    document.getElementById('wlCategory').value = w.category || 'lainnya';
+    document.getElementById('wlDate').value = w.date || todayStr();
+    document.getElementById('wlStore').value = w.storeId || '';
+    document.getElementById('wlDescription').value = w.description || '';
+    document.getElementById('wlResult').value = w.result || '';
+    document.getElementById('wlStatus').value = w.status || 'selesai';
+    if(w.photoUrl) setExistingPhoto('wlPhoto', w.photoUrl);
+    document.getElementById('btnDeleteWorklog').style.display = 'inline-flex';
+  } else {
+    document.getElementById('worklogModalTitle').textContent = 'Tambah Dokumentasi';
+  }
+  openSheet('worklogModal');
+  setTimeout(() => document.getElementById('wlTitle').focus(), 400);
+}
+
+async function saveWorklog(e){
+  e.preventDefault();
+  const btn = document.getElementById('wlSaveBtn');
+  if(btn.disabled) return;
+  const id = document.getElementById('wlId').value;
+  const title = document.getElementById('wlTitle').value.trim();
+  const description = document.getElementById('wlDescription').value.trim();
+  if(!title){ snack('Judul wajib diisi', 'error'); return; }
+  if(!description){ snack('Keterangan/uraian wajib diisi', 'error'); return; }
+
+  const oldHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+  try {
+    const photoUrl = await resolvePhotoUrl('wlPhoto');
+    const storeId = document.getElementById('wlStore').value;
+    const store = storeId ? getStore(Number(storeId)) : null;
+    const data = {
+      title,
+      category: document.getElementById('wlCategory').value,
+      date: document.getElementById('wlDate').value || todayStr(),
+      storeId: storeId ? Number(storeId) : null,
+      storeName: store ? store.name : '',
+      description,
+      result: document.getElementById('wlResult').value.trim(),
+      status: document.getElementById('wlStatus').value,
+      photoUrl: photoUrl || '',
+      authorEmail: currentEmail
+    };
+    if(id){
+      const existing = getWorklog(Number(id));
+      data.id = Number(id);
+      data.createdAt = existing?.createdAt || Date.now();
+      data.updatedAt = Date.now();
+      await dbPut('worklogs', data);
+      snack('Dokumentasi diperbarui');
+    } else {
+      data.createdAt = Date.now();
+      data.updatedAt = Date.now();
+      await dbAdd('worklogs', data);
+      snack('Dokumentasi ditambahkan');
+    }
+    closeSheet('worklogModal');
+    resetPhotoField('wlPhoto');
+    renderWorklogs();
+  } catch(err){
+    console.error(err);
+    snack(err.message || 'Gagal menyimpan', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = oldHtml;
+  }
+}
+
+function deleteWorklogFromModal(){
+  const id = Number(document.getElementById('wlId').value);
+  if(!id) return;
+  closeSheet('worklogModal');
+  confirmDeleteWorklog(id);
+}
+
+function confirmDeleteWorklog(id){
+  const w = getWorklog(id);
+  if(!w) return;
+  const confirmOk = document.getElementById('confirmOk');
+  confirmOk.className = 'btn btn-danger';
+  confirmOk.style.background = '';
+  confirmOk.innerHTML = '<i class="fas fa-trash"></i> Hapus';
+  document.getElementById('confirmMsg').innerHTML = `Hapus dokumentasi <b>${esc(w.title||'—')}</b>?`;
+  confirmOk.onclick = async () => {
+    try {
+      await dbDelete('worklogs', id);
+      closeSheet('confirmModal');
+      renderWorklogs();
+      snack('Dokumentasi dihapus');
+    } catch(err){ console.error(err); snack('Gagal hapus', 'error'); }
+  };
+  openSheet('confirmModal');
+}
+
+function openWorklogDetail(id){
+  const w = getWorklog(id);
+  if(!w) return;
+  const cat = worklogCatInfo(w.category);
+  const st = worklogStatusInfo(w.status);
+  document.getElementById('detailIcon').className = 'fas ' + cat.icon;
+  document.getElementById('detailTitle').textContent = w.title || 'Dokumentasi';
+
+  let html = '';
+  if(w.photoUrl){
+    html += `<img src="${esc(w.photoUrl)}" class="history-photo-hero" alt="">`;
+  }
+  html += `<div class="info-hero" style="padding-top:${w.photoUrl?'6px':'0'}">
+    <div class="info-hero-icon" style="width:60px;height:60px;font-size:22px;border-radius:16px;background:var(--violet);box-shadow:0 16px 32px rgba(139,92,246,.4)"><i class="fas ${cat.icon}"></i></div>
+    <h3>${esc(w.title||'—')}</h3>
+    <p>
+      <span class="wl-cat-badge ${cat.color}" style="display:inline-flex;margin:2px 4px">${cat.label}</span>
+      <span class="wl-status ${st.class}" style="display:inline-flex;margin:2px 4px">${st.label}</span>
+      <br><i class="fas fa-calendar"></i> ${fmtDate(w.date)}
+      ${w.storeName ? ` • <i class="fas fa-store"></i> ${esc(w.storeName)}` : ''}
+      ${w.authorEmail ? `<br><i class="fas fa-user" style="font-size:10px"></i> <span style="font-size:10.5px">${esc(w.authorEmail)}</span>` : ''}
+    </p>
+  </div>
+
+  <div class="section-head" style="margin:6px 2px 8px"><h2><i class="fas fa-pen"></i> Keterangan Kegiatan</h2></div>
+  <div class="fb-info-box" style="margin-bottom:12px">${esc(w.description||'—').replace(/\n/g,'<br>')}</div>
+
+  ${w.result ? `<div class="section-head" style="margin:6px 2px 8px"><h2><i class="fas fa-list-check"></i> Hasil / Tindak Lanjut</h2></div>
+  <div class="fb-info-box" style="margin-bottom:12px;background:var(--green-pale);border-color:rgba(16,185,129,.3);color:var(--green-deep)">${esc(w.result).replace(/\n/g,'<br>')}</div>` : ''}
+
+  <div style="font-size:10.5px;color:var(--text-mute);font-weight:600;text-align:center;margin-top:10px">
+    Dibuat: ${fmtDateTime(w.createdAt||Date.now())}${w.updatedAt && w.updatedAt !== w.createdAt ? `<br>Diedit: ${fmtDateTime(w.updatedAt)}` : ''}
+  </div>
+
+  <div class="btn-row" style="margin-top:16px">
+    <button class="btn btn-outlined" onclick="closeSheet('detailModal'); openWorklogModal(${w.id})"><i class="fas fa-pen"></i> Edit</button>
+    <button class="btn btn-danger" onclick="closeSheet('detailModal'); confirmDeleteWorklog(${w.id})"><i class="fas fa-trash"></i> Hapus</button>
+  </div>`;
+  document.getElementById('detailBody').innerHTML = html;
+  openSheet('detailModal');
+}
+
+async function exportWorklogPDF(){
+  if(!window.jspdf || !window.jspdf.jsPDF){ snack('PDF belum termuat', 'error'); return; }
+  const list = getFilteredWorklogs();
+  if(list.length === 0){ snack('Tidak ada dokumentasi untuk diekspor', 'info'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const M = 12;
+  const cfg = getPDFConfig();
+
+  doc.setFillColor(139, 92, 246);
+  doc.rect(0, 0, pageW, 28, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('bapok', M + 4, 12);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('Laporan Dokumentasi Kerja', M + 4, 19);
+
+  if(cfg.logoUrl){
+    try { doc.addImage(cfg.logoUrl, 'PNG', pageW - M - 22, 4, 20, 18, undefined, 'FAST'); } catch(e){}
+  }
+
+  let y = 36;
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text(`${list.length} Dokumentasi • Dicetak ${fmtDate(todayStr())}`, M, y);
+  y += 6;
+
+  const head = [['#', 'Tanggal', 'Judul', 'Jenis', 'Toko', 'Status']];
+  const body = list.map((w, i) => [
+    String(i+1),
+    fmtDate(w.date),
+    w.title || '—',
+    worklogCatInfo(w.category).label,
+    w.storeName || '—',
+    worklogStatusInfo(w.status).label
+  ]);
+
+  doc.autoTable({
+    head, body, startY: y, theme: 'grid',
+    margin: { left: M, right: M },
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, textColor: [30,41,59], overflow: 'linebreak', valign: 'middle' },
+    headStyles: { fillColor: [139,92,246], textColor: [255,255,255], fontStyle: 'bold', halign: 'center' },
+    alternateRowStyles: { fillColor: [250,245,255] },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 10 },
+      1: { cellWidth: 22 },
+      2: { fontStyle: 'bold' },
+      3: { cellWidth: 26 },
+      4: { cellWidth: 30 },
+      5: { cellWidth: 26, halign: 'center' }
+    }
+  });
+
+  let finalY = (doc.lastAutoTable.finalY || y) + 10;
+
+  if(finalY + 40 > doc.internal.pageSize.getHeight() - 12){ doc.addPage(); finalY = 22; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(15,23,42);
+  doc.text('Lampiran Keterangan', M, finalY);
+  finalY += 4;
+
+  list.forEach((w, i) => {
+    if(finalY + 22 > doc.internal.pageSize.getHeight() - 12){ doc.addPage(); finalY = 22; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(15,23,42);
+    doc.text(`${i+1}. ${w.title || '—'}`, M, finalY);
+    finalY += 4.5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(71,85,105);
+    const lines = doc.splitTextToSize(w.description || '—', pageW - M*2);
+    doc.text(lines, M, finalY);
+    finalY += lines.length * 4 + 3;
+  });
+
+  if(cfg.signatureUrl || cfg.signatureName){
+    if(finalY + 40 > doc.internal.pageSize.getHeight() - 12){ doc.addPage(); finalY = 22; }
+    const sigW = 55; const sigX = pageW - M - sigW;
+    doc.setTextColor(30,41,59); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    doc.text('Tanda Tangan,', sigX, finalY);
+    let imgY = finalY + 3;
+    if(cfg.signatureUrl){
+      try { doc.addImage(cfg.signatureUrl, 'PNG', sigX, imgY, sigW, 20, undefined, 'FAST'); imgY += 20; } catch(e){ imgY += 15; }
+    } else { imgY += 15; }
+    doc.setDrawColor(30,41,59); doc.setLineWidth(0.3); doc.line(sigX, imgY, sigX+sigW, imgY);
+    if(cfg.signatureName){
+      doc.setFont('helvetica','bold'); doc.setFontSize(10);
+      doc.text(cfg.signatureName, sigX + sigW/2, imgY + 5, { align: 'center' });
+    }
+  }
+
+  doc.save(`Dokumentasi_Kerja_${todayStr()}.pdf`);
+  snack('PDF dokumentasi diunduh');
+}
+
+window.openWorklogModal = openWorklogModal;
+window.saveWorklog = saveWorklog;
+window.deleteWorklogFromModal = deleteWorklogFromModal;
+window.confirmDeleteWorklog = confirmDeleteWorklog;
+window.openWorklogDetail = openWorklogDetail;
+window.exportWorklogPDF = exportWorklogPDF;
+
+/* ============ RENDER ALL ============ */
 function renderAll(){
   renderDashboard();
   renderItems();
   renderStores();
   renderCompare();
   renderReports();
+  renderWorklogs();
 }
 
 function renderActionSheet(){
@@ -3848,6 +4381,10 @@ function renderActionSheet(){
       <div class="action-item" onclick="openItemModal()">
         <i class="ic-violet fas fa-cube"></i>
         <div class="action-text"><h4>Tambah Barang</h4><p>Daftarkan barang baru</p></div>
+      </div>
+      <div class="action-item" onclick="closeSheet('actionSheet'); openWorklogModal()">
+        <i class="ic-violet fas fa-clipboard-list"></i>
+        <div class="action-text"><h4>Tambah Dokumentasi Kerja</h4><p>Catat kegiatan & keterangan</p></div>
       </div>`;
     if(!hasStore){
       html += `
@@ -5721,6 +6258,7 @@ document.getElementById('btnInfo').addEventListener('click', () => openSheet('in
 document.getElementById('btnKelolaAgen').addEventListener('click', openAgentPicker);
 document.getElementById('searchItem').addEventListener('input', e => { state.itemSearch = e.target.value; renderItems(); });
 document.getElementById('searchStore').addEventListener('input', e => { state.storeSearch = e.target.value; renderStores(); });
+document.getElementById('searchWorklog').addEventListener('input', e => { state.worklogSearch = e.target.value; renderWorklogs(); });
 document.getElementById('compareItemSelect').addEventListener('change', e => { state.compareGroupKey = e.target.value; renderCompare(); });
 document.getElementById('trendItemSelect').addEventListener('change', e => { state.trendGroupKey = e.target.value; renderReportCharts(); });
 document.getElementById('bulkStore').addEventListener('change', () => { state.bulkDraft = {}; renderBulkList(); });
@@ -5741,6 +6279,10 @@ if(globalSearchEl){
       state.storeSearch = q;
       document.getElementById('searchStore').value = q;
       renderStores();
+    } else if(state.view === 'worklog'){
+      state.worklogSearch = q;
+      document.getElementById('searchWorklog').value = q;
+      renderWorklogs();
     }
   });
 }
